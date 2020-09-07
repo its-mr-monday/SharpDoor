@@ -59,12 +59,13 @@ namespace SharpDoor_Server //Server side Console App
                             if ((bytesRead + buffer) > bytesToRead.Length)      //Adjust buffer in case buffer is larger than buffer going over the wire
                             {
                                 buffer = bytesToRead.Length - bytesRead;
-                                SupportFuncLib.ProgressBar(true,false); //End progress bar
+                                
                             }
                             stream.Read(bytesToRead, bytesRead, buffer);    //Read bytes from stream
                             //Console.WriteLine("Read " + buffer + " bytes from target");
                             bytesRead += buffer;
                         }
+                        SupportFuncLib.ProgressBar(true, false); //End progress bar
                         var fs = new FileStream(filename, FileMode.Create, FileAccess.Write);
                         fs.Write(bytesToRead, 0, bytesToRead.Length);       //Write bytes to a file 
                         fs.Close();
