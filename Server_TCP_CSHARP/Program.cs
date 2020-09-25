@@ -124,7 +124,7 @@ namespace SharpDoor_Server //Server side Console App
                 SupportFuncLib.Help();
                 return 1;
             }
-            else if (command.Contains("server -port -change:"))     //Change the port the server is using
+            else if (command.Contains("server -port -change:"))     //Change the port the server is using and notify client
             {
                 try { 
                     int port = int.Parse(command[21..command.Length]);
