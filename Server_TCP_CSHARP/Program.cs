@@ -5,12 +5,10 @@ using System.IO;
 using System.Text;
 using System.Runtime.CompilerServices;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Drawing;
-using System.Drawing.Imaging;
+
 
 namespace SharpDoor_Server //Server side Console App
 {
@@ -329,6 +327,7 @@ namespace SharpDoor_Server //Server side Console App
 
         static void Main()     //Main Function
        {
+            
             string version = "Alpha Unstable Build v1.13";        //Current Release Version and Build
             string IP = SupportFuncLib.GetIPV4();
             reboot:     //EXCEPTION CATCH REBOOT
@@ -346,6 +345,13 @@ namespace SharpDoor_Server //Server side Console App
                 NetworkStream stream = client.GetStream();      //GET THE STREAM FROM THE CLIENT FOR COMMUNICATION
                 try
                 {
+                    RSACryptoServiceProvider csp = new RSACryptoServiceProvider();  //Create new crypto service provider
+                    RSAParameters _privateKey = Crypto.PrivateKey(csp); //extract private ket from csp
+                    RSAParameters _publicKey = Crypto.PublicKey(csp);   //extract public key from csp
+                    string pubKey = Crypto.PublicKeyString(_publicKey); //Convert public key to string to send it
+                    Crypto.SendPubKey(stream, client, pubKey);  //Send public key to client
+                    string client_pubKey = Crypto.ReceivePubKey(stream, client);    //Receive clients public key
+
                     string ipv4 = Receive(stream, client);
                     SupportFuncLib.Connection_log(ipv4, PORTS[PORT]);  //Log Conecctions and ports to a txt file
 

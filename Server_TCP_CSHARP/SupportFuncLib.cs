@@ -202,6 +202,5 @@ namespace SharpDoor_Server//SERVER SIDE CONSOLE APP
 
         }
 
-
     }
 }

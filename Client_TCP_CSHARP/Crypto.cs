@@ -1,80 +1,108 @@
 ﻿//
 //
-//		Sharpdoor Crypto Class
+//		Sharpdoor Crypto Class Module Version 1.0
 //
 //
 
 using System;
-using System.Collections.Generic;
 using System.Text;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
+using System.Net.Sockets;
+using System.Xml.Serialization;
 
 namespace SharpDoor_Client
 {
     class Crypto
     {
-        public static byte[] GenerateSalt(int length)   //Thank you Microsoft for this one makes random salt of 'lenght' bytes
+        public static RSAParameters PrivateKey(RSACryptoServiceProvider csp)    //Create a private key
         {
-            // Create a buffer
-            byte[] randBytes;
-            if (length >= 1)
+            return csp.ExportParameters(true);
+        }
+        public static RSAParameters PublicKey(RSACryptoServiceProvider csp) //Create a public key
+        {
+            return csp.ExportParameters(false);
+        }
+        public static string PublicKeyString(RSAParameters _publicKey)  //Convert public key to string
+        {
+            var sw = new StringWriter();
+            var xs = new XmlSerializer(typeof(RSAParameters));
+            xs.Serialize(sw, _publicKey);
+            return sw.ToString();
+        }
+        public static RSAParameters PublicKeyRSA(string publicKeyString)    //Convert a public key from string formay to RSAParamaters
+        {
+            byte[] lDer;
+            //Set RSAKeyInfo to the public key values. 
+            int lBeginStart = "-----BEGIN PUBLIC KEY-----".Length;
+            int lEndLenght = "-----END PUBLIC KEY-----".Length;
+            string KeyString = publicKeyString.Substring(lBeginStart, (publicKeyString.Length - lBeginStart - lEndLenght));
+            lDer = Convert.FromBase64String(KeyString);
+            //Create a new instance of the RSAParameters structure.
+            RSAParameters lRSAKeyInfo = new RSAParameters();
+            lRSAKeyInfo.Modulus = GetModulus(lDer);
+            lRSAKeyInfo.Exponent = GetExponent(lDer);
+            return lRSAKeyInfo;
+        }
+        private static byte[] GetModulus(byte[] pDer)   // Get modulus for shared public key
+        {
+            //Size header is 29 bits
+            //The key size modulus is 128 bits, but in hexa string the size is 2 digits => 256 
+            string lModulus = BitConverter.ToString(pDer).Replace("-", "").Substring(58, 256);
+            return StringHexToByteArray(lModulus);
+        }
+
+        private static byte[] GetExponent(byte[] pDer)      //Get exponent for shared public key
+        {
+            int lExponentLenght = pDer[pDer.Length - 3];
+            string lExponent = BitConverter.ToString(pDer).Replace("-", "").Substring((pDer.Length * 2) - lExponentLenght * 2, lExponentLenght * 2);
+            return StringHexToByteArray(lExponent);
+        }
+
+        public static byte[] StringHexToByteArray(string hex)       // Go from string hex to byte form
+        {
+            return Enumerable.Range(0, hex.Length)
+                             .Where(x => x % 2 == 0)
+                             .Select(x => Convert.ToByte(hex.Substring(x, 2), 16))
+                             .ToArray();
+        }
+        public byte[] Encrypt(byte[] plainData, RSAParameters _publicKey)
+        {
+            RSACryptoServiceProvider csp = new RSACryptoServiceProvider(2048);
+            csp.ImportParameters(_publicKey);
+            var cypher = csp.Encrypt(plainData, false);
+            return cypher;
+        }
+        public byte[] Decrypt(byte[] encryptedData, RSAParameters _privateKey)
+        {
+            RSACryptoServiceProvider csp = new RSACryptoServiceProvider(2048);
+            csp.ImportParameters(_privateKey);
+            byte[] plainData = csp.Decrypt(encryptedData, false);
+            return plainData;
+        }
+        public static void SendPubKey(NetworkStream stream, TcpClient client, string pubKey)      //Send public key to target
+        {
+            byte[] sendData = Encoding.ASCII.GetBytes(pubKey);
+            stream.Write(sendData, 0, sendData.Length);
+            byte[] buffer = new byte[client.ReceiveBufferSize];
+            int bytesRead = stream.Read(buffer, 0, client.ReceiveBufferSize);
+            string message = Encoding.ASCII.GetString(buffer, 0, bytesRead);
+            if (message == "PUB KEY RECEIVED") //pub key check
             {
-                randBytes = new byte[length];
+                Console.WriteLine("serv: " + message);
+                return;
             }
-            else
-            {
-                randBytes = new byte[1];
-            }
-            // Create a new RNGCryptoServiceProvider.
-            RNGCryptoServiceProvider rand = new RNGCryptoServiceProvider();
-            // Fill the buffer with random bytes.
-            rand.GetBytes(randBytes);
-            // return the bytes.
-            return randBytes;
         }
-        public static string GeneratePassword(int length)     //Generates a random string password
+        public static string ReceivePubKey(NetworkStream stream, TcpClient client)   //Receive public key from target
         {
-            // creating a StringBuilder object()
-            StringBuilder str_build = new StringBuilder();
-            Random random = new Random();
-            char letter;
-            for (int i = 0; i < length; i++)
-            {
-                double flt = random.NextDouble();
-                int shift = Convert.ToInt32(Math.Floor(25 * flt));
-                letter = Convert.ToChar(shift + 65);
-                str_build.Append(letter);
-            }
-            return str_build.ToString();
-        }
-        public static PasswordDeriveBytes GenerateKey(string password, byte[] salt)     //Generates a random key from the password and salt
-        {
-            byte[] pwd = Encoding.Unicode.GetBytes(password);
-            return new PasswordDeriveBytes(pwd, salt);
-        }
-        public static byte[] Encrypt(byte[] input, PasswordDeriveBytes pdb) //Encrypts input bytes with a password key
-        {
-            MemoryStream ms = new MemoryStream();   //Create new memory stream
-            Aes aes = new AesManaged(); //Create new aes key object
-            aes.Key = pdb.GetBytes(aes.KeySize / 8);
-            aes.IV = pdb.GetBytes(aes.BlockSize / 8);
-            CryptoStream cs = new CryptoStream(ms, aes.CreateEncryptor(), CryptoStreamMode.Write);  //Create a crypto stream with the memory stream and aes key
-            cs.Write(input, 0, input.Length);   //Write the unencrypted bytes to the stream
-            cs.Close(); //Close the crypto stream and therefore writing the encrypted bytes to the memory stream
-            return ms.ToArray();    //return a byte array of the encrypted data
-        }
-        
-        public static byte[] Decrypt(byte[] input, PasswordDeriveBytes pdb) //Decryts input bytes with a password key
-        {
-            MemoryStream ms = new MemoryStream();
-            Aes aes = new AesManaged();
-            aes.Key = pdb.GetBytes(aes.KeySize / 8);
-            aes.IV = pdb.GetBytes(aes.BlockSize / 8);
-            CryptoStream cs = new CryptoStream(ms, aes.CreateDecryptor(), CryptoStreamMode.Write);
-            cs.Write(input, 0, input.Length);
-            cs.Close();
-            return ms.ToArray();
+            byte[] buffer = new byte[client.ReceiveBufferSize];
+            int bytesRead = stream.Read(buffer, 0, client.ReceiveBufferSize);
+            string message = Encoding.ASCII.GetString(buffer, 0, bytesRead);
+            string conf = "PUB KEY RECEIVED";
+            byte[] sendData = Encoding.ASCII.GetBytes(conf);
+            stream.Write(sendData, 0, sendData.Length);
+            return message;
         }
     }
 }

@@ -9,7 +9,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
 using System.Threading;
-using System.Security.Cryptography;
+
 namespace SharpDoor_Client
 {
     class SupportFuncLib    //Support Function Library for the CLIENT
